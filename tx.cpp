@@ -31,7 +31,10 @@ RF24Network network(radio);
 
 // payload to send to action nodes
 struct message_action {
-  char* command;
+  unsigned char mode;
+  unsigned char param1;
+  unsigned char param2;
+  unsigned char param3;
 };
 
 // Mosquitto class
@@ -58,7 +61,23 @@ struct message_action {
       }
 
       message_action actionmessage;
-      actionmessage = (message_action){ (char*)mosqmessage->payload };
+      char messagePayload[13];
+      strcpy(messagePayload, (char*)mosqmessage->payload);
+
+      char modeArray[4] = {messagePayload[0], messagePayload[1], messagePayload[2]};
+      char paramArray1[4] = {messagePayload[3], messagePayload[4], messagePayload[5]};
+      char paramArray2[4] = {messagePayload[6], messagePayload[7], messagePayload[8]};
+      char paramArray3[4] = {messagePayload[9], messagePayload[10], messagePayload[11]};
+      unsigned int mode = atoi(modeArray);
+      unsigned int param1 = atoi(paramArray1);
+      unsigned int param2 = atoi(paramArray2);
+      unsigned int param3 = atoi(paramArray3);
+
+
+      printf("ParamArray1: %s\n", paramArray1);
+      printf("Param1: %i\n", param1);
+
+      actionmessage = (message_action){ mode, param1, param2, param3 };
 
       // send message on the RF24Network
       printf("Sending instructions to node %i\n", target_node);
@@ -105,6 +124,7 @@ int main(int argc, char** argv)
 
     // check for messages on subscribed MQTT channels
     mosq.loop();
+    printf(".\n");
 
     // give a little pause and do it all again
     delay(interval);

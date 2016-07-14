@@ -1,7 +1,7 @@
 #include <RF24/RF24.h>
 #include <RF24Network/RF24Network.h>
-#include </usr/include/mosquittopp.h>
-#include </usr/include/mosquitto.h>
+#include "mosquittopp.h"
+#include "mosquitto.h"
 #include <iostream>
 #include <string>
 #include <sstream>
@@ -10,17 +10,19 @@
 #include <stdlib.h>
 #include <time.h>
 
-using namespace mosqpp;
-
 // Constants that identify nodes
-const uint16_t pi_node = 0;
-const uint16_t action_node1 = 1; // home/master/deskLamp
-const uint16_t action_node2 = 2; // home/master/tvLight
-const uint16_t sensor_node3 = 3; // currently unused
+const uint16_t pi_node = 00; // this node
+const uint16_t action_node1 = 01; // home/master/deskLamp
+const uint16_t action_node2 = 02; // home/master/tvLight
+const uint16_t sensor_node3 = 03; // home/master/temp
 
 // channels to subscribe to
 const char* action_channel1 = "home/master/deskLamp";
 const char* action_channel2 = "home/master/tvLight";
+
+// channels to publish to
+const char* sensor_channel3a = "home/master/temp";
+const char* sensor_channel3b = "home/master/humidity";
 
 // Time between checking for packets (in ms)
 const unsigned long interval = 1000;
@@ -37,17 +39,26 @@ struct message_action {
   unsigned char param3;
 };
 
+// payload sent from sensor nodes
+struct message_sensor {
+  uint16_t sensor;
+  uint16_t param1;
+  uint16_t param2;
+  uint16_t param3;
+};
+
 // Mosquitto class
  class MyMosquitto : public mosqpp::mosquittopp {
   public:
     MyMosquitto() : mosqpp::mosquittopp ("PiBrain") {  mosqpp::lib_init(); }
 
-		virtual void on_connect (int rc) { printf("Connected to Mosquitto\n"); }
+      virtual void on_connect (int rc) { printf("Connected to Mosquitto\n"); }
 
-		virtual void on_disconnect () { printf("Disconnected\n"); }
+      virtual void on_disconnect () { printf("Disconnected\n"); }
 
-		virtual void on_message(const struct mosquitto_message* mosqmessage) {
-			// Message received on a channel we subscribe to
+      virtual void on_message(const struct mosquitto_message* mosqmessage) {
+
+      // Message received on a channel we subscribe to
       printf("Message found on channel %s: %s\n", mosqmessage->topic, (char*)mosqmessage->payload);
 
       // determing node target based on channel
@@ -73,10 +84,6 @@ struct message_action {
       unsigned int param2 = atoi(paramArray2);
       unsigned int param3 = atoi(paramArray3);
 
-
-      printf("ParamArray1: %s\n", paramArray1);
-      printf("Param1: %i\n", param1);
-
       actionmessage = (message_action){ mode, param1, param2, param3 };
 
       // send message on the RF24Network
@@ -100,7 +107,7 @@ struct message_action {
         }
         if (!sent) { printf("Send failed.\n"); }
       }
-		}
+    }
  };
 
  MyMosquitto mosq;
@@ -108,10 +115,9 @@ struct message_action {
 int main(int argc, char** argv)
 {
   // Initialize radio
-	radio.begin();
-	delay(5);
-	network.begin(90, pi_node);
-  network.update();
+  radio.begin();
+  delay(5);
+  network.begin(90, pi_node);
 
   // Initialize MQTT client and subscriptions
   mosq.connect("127.0.0.1");
@@ -120,14 +126,42 @@ int main(int argc, char** argv)
 
   // main loop
   while (true) {
-    // this is where we will monitor the RF24Network for updates from sensors
+    network.update();
+
+    if (network.available()){
+      printf("Information available");
+      RF24NetworkHeader header;
+      message_sensor payload;
+      network.read(header,&payload,sizeof(payload));
+
+      int sensor = payload.sensor;
+      int param1 = payload.param1;
+      int param2 = payload.param2;
+      int param3 = payload.param3;
+
+      printf(" from sensor: %i\n", sensor);
+
+      if(sensor == sensor_node3) {
+        if (param1 == 1) {
+          char buffer_temp[50];
+        	char buffer_humidity[50];
+
+          printf("Bedroom temp: %i\n", payload.param2);
+          printf("Bedroom humidity: %i\n", payload.param3);
+
+        	sprintf (buffer_temp, "mosquitto_pub -t home/master/temp -r -m \"%i\"", param2);
+        	sprintf (buffer_humidity, "mosquitto_pub -t home/master/humidity -r -m \"%i\"", param3);
+        	system(buffer_temp);
+        	system(buffer_humidity);
+        }
+      } else {
+        printf("Unknown sensor!");
+      }
+    }
 
     // check for messages on subscribed MQTT channels
     mosq.loop();
     printf(".\n");
-
-    // give a little pause and do it all again
-    delay(interval);
   }
 
   return 0;

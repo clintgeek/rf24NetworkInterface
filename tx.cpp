@@ -12,17 +12,28 @@
 
 // Constants that identify nodes
 const uint16_t pi_node = 00; // this node
-const uint16_t action_node1 = 01; // home/master/deskLamp
-const uint16_t action_node2 = 02; // home/master/tvLight
-const uint16_t sensor_node3 = 03; // home/master/temp
+const uint16_t home_office_node = 01;
+const uint16_t master_bedroom_node = 02;
+const uint16_t living_room_node = 03;
+
+// Sensor types
+const uint16_t dht22 = 01;
+const uint16_t tv_power = 02;
 
 // channels to subscribe to
-const char* action_channel1 = "home/master/deskLamp";
-const char* action_channel2 = "home/master/tvLight";
+const char* home_office_lamp_command = "home/office/desk_lamp/command";
+const char* master_bedroom_tv_lamp_command = "home/master/tv_lamp/command";
+const char* master_bedroom_tv_lamp_rgb_command = "home/master/tv_lamp/rgb/command";
+const char* living_room_tv_lamp_command = "home/living_room/tv_lamp/command";
+const char* living_room_tv_lamp_rgb_command = "home/living_room/tv_lamp/rgb/command";
 
 // channels to publish to
-const char* sensor_channel3a = "home/master/temp";
-const char* sensor_channel3b = "home/master/humidity";
+const char* master_bedroom_temperature_state = "home/master/temperature/state";
+const char* master_bedroom_humidity_state = "home/master/humidity/state";
+const char* master_bedroom_tv_power_state = "home/master/tv_power/state";
+const char* living_room_temperature_state = "home/living_room/temperature/state";
+const char* living_room_humidity_state = "home/living_room/humidity/state";
+const char* living_room_tv_power_state = "home/living_room/tv_power/state";
 
 // Time between checking for packets (in ms)
 const unsigned long interval = 1000;
@@ -41,7 +52,7 @@ struct message_action {
 
 // payload sent from sensor nodes
 struct message_sensor {
-  uint16_t sensor;
+  uint16_t sensor_type;
   uint16_t param1;
   uint16_t param2;
   uint16_t param3;
@@ -63,10 +74,17 @@ struct message_sensor {
 
       // determing node target based on channel
       uint16_t target_node = 0;
-      if (strcmp(mosqmessage->topic, action_channel1) == 0) {
-        target_node = action_node1;
-      } else if (strcmp(mosqmessage->topic, action_channel2) == 0) {
-        target_node = action_node2;
+      bool ha_rgb = false;
+      if (strcmp(mosqmessage->topic, master_bedroom_tv_lamp_command) == 0) {
+        target_node = master_bedroom_node;
+      } else if (strcmp(mosqmessage->topic, master_bedroom_tv_lamp_rgb_command) == 0) {
+        target_node = master_bedroom_node;
+        ha_rgb = true;
+      } else if (strcmp(mosqmessage->topic, living_room_tv_lamp_command) == 0) {
+        target_node = living_room_node;
+      } else if (strcmp(mosqmessage->topic, living_room_tv_lamp_rgb_command) == 0) {
+        target_node = living_room_node;
+        ha_rgb = true;
       } else {
         printf("FAILED: Unknown MQTT channel!");
       }
@@ -75,15 +93,41 @@ struct message_sensor {
       char messagePayload[13];
       strcpy(messagePayload, (char*)mosqmessage->payload);
 
-      char modeArray[4] = {messagePayload[0], messagePayload[1], messagePayload[2]};
-      char paramArray1[4] = {messagePayload[3], messagePayload[4], messagePayload[5]};
-      char paramArray2[4] = {messagePayload[6], messagePayload[7], messagePayload[8]};
-      char paramArray3[4] = {messagePayload[9], messagePayload[10], messagePayload[11]};
-      unsigned int mode = atoi(modeArray);
-      unsigned int param1 = atoi(paramArray1);
-      unsigned int param2 = atoi(paramArray2);
-      unsigned int param3 = atoi(paramArray3);
+      unsigned int mode;
+      unsigned int param1;
+      unsigned int param2;
+      unsigned int param3;
 
+      if (ha_rgb) {
+        char * rgb;
+        int c = 0;
+        mode = 001;
+
+        printf ("Splitting string \"%s\" into tokens:\n",messagePayload);
+        rgb = strtok (messagePayload," ,.-");
+        while (rgb != NULL)
+        {
+          if (c == 0) {
+            param1 = atoi(rgb);
+          } else if (c == 1) {
+            param2 = atoi(rgb);
+          } else {
+            param3 = atoi(rgb);
+          }
+          c++;
+          printf ("%s\n",rgb);
+          rgb = strtok (NULL, " ,.-");
+        }
+      } else {
+        char modeArray[4] = {messagePayload[0], messagePayload[1], messagePayload[2]};
+        char paramArray1[4] = {messagePayload[3], messagePayload[4], messagePayload[5]};
+        char paramArray2[4] = {messagePayload[6], messagePayload[7], messagePayload[8]};
+        char paramArray3[4] = {messagePayload[9], messagePayload[10], messagePayload[11]};
+        mode = atoi(modeArray);
+        param1 = atoi(paramArray1);
+        param2 = atoi(paramArray2);
+        param3 = atoi(paramArray3);
+      }
       actionmessage = (message_action){ mode, param1, param2, param3 };
 
       // send message on the RF24Network
@@ -121,8 +165,11 @@ int main(int argc, char** argv)
 
   // Initialize MQTT client and subscriptions
   mosq.connect("127.0.0.1");
-  mosq.subscribe(0, action_channel1);
-  mosq.subscribe(0, action_channel2);
+  mosq.subscribe(0, home_office_lamp_command);
+  mosq.subscribe(0, master_bedroom_tv_lamp_command);
+  mosq.subscribe(0, master_bedroom_tv_lamp_rgb_command);
+  mosq.subscribe(0, living_room_tv_lamp_command);
+  mosq.subscribe(0, living_room_tv_lamp_rgb_command);
 
   // main loop
   while (true) {
@@ -134,25 +181,69 @@ int main(int argc, char** argv)
       message_sensor payload;
       network.read(header,&payload,sizeof(payload));
 
-      int sensor = payload.sensor;
+      int sensor_id = header.from_node;
+      int sensor_type = payload.sensor_type;
       int param1 = payload.param1;
       int param2 = payload.param2;
       int param3 = payload.param3;
 
-      printf(" from sensor: %i\n", sensor);
+      printf(" from sensor: %i\n", sensor_id);
 
-      if(sensor == sensor_node3) {
-        if (param1 == 1) {
-          char buffer_temp[50];
-        	char buffer_humidity[50];
+      if(sensor_id == master_bedroom_node) {
+        if (sensor_type == dht22) {
+          char buffer_temp[100];
+        	char buffer_humidity[100];
 
-          printf("Bedroom temp: %i\n", payload.param2);
-          printf("Bedroom humidity: %i\n", payload.param3);
+          printf("Bedroom temp: %i\n", param1);
+          printf("Bedroom humidity: %i\n", param2);
 
-        	sprintf (buffer_temp, "mosquitto_pub -t home/master/temp -r -m \"%i\"", param2);
-        	sprintf (buffer_humidity, "mosquitto_pub -t home/master/humidity -r -m \"%i\"", param3);
+        	sprintf (buffer_temp, "mosquitto_pub -t home/master/temperature/state -r -m \"%i\"", param1);
+        	sprintf (buffer_humidity, "mosquitto_pub -t home/master/humidity/state -r -m \"%i\"", param2);
         	system(buffer_temp);
         	system(buffer_humidity);
+        } else if (sensor_type == tv_power){
+          char buffer_tv_status[50];
+          char tv_state[4];
+
+          if (param1 == 1) {
+            strcpy(tv_state, "ON");
+          } else {
+            strcpy(tv_state, "OFF");
+          }
+
+          printf("Bedroom TV is: %s\n", tv_state);
+          sprintf (buffer_tv_status, "mosquitto_pub -t home/master/tv_power/state -r -m \"%s\"", tv_state);
+          system(buffer_tv_status);
+        } else {
+          printf("Unknown sensor type!");
+        }
+      } else if(sensor_id == living_room_node) {
+        if (sensor_type == dht22) {
+          char buffer_temp[100];
+        	char buffer_humidity[100];
+
+          printf("Living Room temp: %i\n", param1);
+          printf("Living Room humidity: %i\n", param2);
+
+        	sprintf (buffer_temp, "mosquitto_pub -t home/living_room/temperature/state -r -m \"%i\"", param1);
+        	sprintf (buffer_humidity, "mosquitto_pub -t home/living_room/humidity/state -r -m \"%i\"", param2);
+        	system(buffer_temp);
+        	system(buffer_humidity);
+        } else if (sensor_type == tv_power){
+          char buffer_tv_status[50];
+          char tv_state[4];
+
+          if (param1 == 1) {
+            strcpy(tv_state, "ON");
+          } else {
+            strcpy(tv_state, "OFF");
+          }
+
+          printf("Living Room TV is: %s\n", tv_state);
+          sprintf (buffer_tv_status, "mosquitto_pub -t home/living_room/tv_power/state -r -m \"%s\"", tv_state);
+          system(buffer_tv_status);
+        } else {
+          printf("Unknown sensor type!");
         }
       } else {
         printf("Unknown sensor!");

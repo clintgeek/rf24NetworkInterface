@@ -89,10 +89,13 @@ class MyMosquitto : public mosqpp::mosquittopp {
     // determing node target based on channel
     uint16_t target_node = 0;
     bool ha_rgb = false;
+    bool ha_brightness = false;
+
     if (strcmp(mosqmessage->topic, office_desk_lamp_command) == 0) {
       target_node = office_node;
     } else if (strcmp(mosqmessage->topic, office_desk_lamp_brightness_command) == 0) {
       target_node = office_node;
+      ha_brightness = true;
     } else if (strcmp(mosqmessage->topic, office_desk_lamp_rgb_command) == 0) {
       target_node = office_node;
       ha_rgb = true;
@@ -100,6 +103,7 @@ class MyMosquitto : public mosqpp::mosquittopp {
       target_node = master_bedroom_node;
     } else if (strcmp(mosqmessage->topic, master_bedroom_tv_lamp_brightness_command) == 0) {
       target_node = master_bedroom_node;
+      ha_brightness = true;
     } else if (strcmp(mosqmessage->topic, master_bedroom_tv_lamp_rgb_command) == 0) {
       target_node = master_bedroom_node;
       ha_rgb = true;
@@ -107,6 +111,7 @@ class MyMosquitto : public mosqpp::mosquittopp {
       target_node = living_room_node;
     } else if (strcmp(mosqmessage->topic, living_room_tv_lamp_brightness_command) == 0) {
       target_node = living_room_node;
+      ha_brightness = true;
     } else if (strcmp(mosqmessage->topic, living_room_tv_lamp_rgb_command) == 0) {
       target_node = living_room_node;
       ha_rgb = true;
@@ -142,6 +147,11 @@ class MyMosquitto : public mosqpp::mosquittopp {
         printf ("%s\n",rgb);
         rgb = strtok (NULL, ",");
       }
+    } else if (ha_brightness) {
+      mode = 99;
+      param1 = atoi(messagePayload);
+      param2 = 0;
+      param3 = 0;
     } else {
       char modeArray[4] = { messagePayload[0], messagePayload[1], messagePayload[2] };
       char paramArray1[4] = { messagePayload[3], messagePayload[4], messagePayload[5] };
@@ -265,7 +275,7 @@ int main(int argc, char** argv)
 
           printf("Master Bedoom brightness: \"%i\"", param1);
           sprintf(buffer_rgbbright, "mosquitto_pub -t home/master/tv_lamp/brightness/state -r -m \"%i\"", param1);
-          ststem(buffer_rgbbright);
+          system(buffer_rgbbright);
         } else {
           printf("Unknown sensor type!");
         }
@@ -317,7 +327,7 @@ int main(int argc, char** argv)
 
           printf("Living Room brightness: \"%i\"", param1);
           sprintf(buffer_rgbbright, "mosquitto_pub -t home/living_room/tv_lamp/brightness/state -r -m \"%i\"", param1);
-          ststem(buffer_rgbbright);
+          system(buffer_rgbbright);
         } else {
           printf("Unknown sensor type!");
         }

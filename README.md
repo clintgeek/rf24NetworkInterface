@@ -6,16 +6,16 @@ This program is designed to run on a RaspberryPi and interfaces between the rf24
 ### Dependencies:
 * rf24 and rf24Network Libraries
 	* Install the `rf24` and `rf24Network` libraries using the installer script. The remaining libraries are unnecessary.
-	
+
 		~~~
-		wget http://tmrh20.github.io/RF24Installer/RPi/		install.sh
+		wget http://tmrh20.github.io/RF24Installer/RPi/install.sh
 		chmod +x install.sh
 		./install.sh
 		~~~
-		
+
 * Mosquitto Client
 	* Add the repo and key, update apt-get, and install necessary client libraries.
-	
+
 		~~~
 		wget http://repo.mosquitto.org/debian/mosquitto-repo.gpg.key
 		sudo apt-key add mosquitto-repo.gpg.key
@@ -23,7 +23,7 @@ This program is designed to run on a RaspberryPi and interfaces between the rf24
 		cd /etc/apt/sources.list.d/
 		sudo wget http://repo.mosquitto.org/debian/mosquitto-jessie.list
 		sudo apt-get update
-		sudo apt-get install mosquitto mosquitto-clients libmosquittopp1
+		sudo apt-get install mosquitto mosquitto-clients libmosquittopp1 libmosquittopp-dev
 		~~~
 
 To run: `sudo ./tx`

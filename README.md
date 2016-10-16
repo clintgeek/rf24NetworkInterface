@@ -26,4 +26,5 @@ This program is designed to run on a RaspberryPi and interfaces between the rf24
 		sudo apt-get install mosquitto mosquitto-clients libmosquittopp1 libmosquittopp-dev
 		~~~
 
+To make: `sudo make tx`
 To run: `sudo ./tx`

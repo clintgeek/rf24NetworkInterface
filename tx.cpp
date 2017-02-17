@@ -35,8 +35,6 @@ const char* master_bedroom_tv_lamp_command = "home/master/tv_lamp/command";
 const char* master_bedroom_tv_lamp_rgb_command = "home/master/tv_lamp/rgb/command";
 const char* master_bedroom_tv_lamp_brightness_command = "home/master/tv_lamp/brightness/command";
 
-const char* garage_door_command = "home/doors/garage/command";
-
 // channels to publish to
 // This script posts to these with rf24 data for HomeAssistant to read
 const char* office_desk_lamp_state = "home/office/desk_lamp/state";
@@ -49,10 +47,6 @@ const char* master_bedroom_tv_power_state = "home/master/tv_power/state";
 const char* master_bedroom_tv_lamp_state = "home/master/tv_lamp/state";
 const char* master_bedroom_tv_lamp_rgb_state = "home/master/tv_lamp/rgb/state";
 const char* master_bedroom_tv_lamp_brightness_state = "home/master/tv_lamp/brightness/state";
-
-const char* garage_door_state = "home/doors/garage/state";
-const char* garage_temperature_state = "home/garage/temperature/state";
-const char* garage_humidity_state = "home/garage/humidity/state";
 
 // Time between checking for packets (in ms)
 const unsigned long interval = 1000;
@@ -89,7 +83,7 @@ class MyMosquitto : public mosqpp::mosquittopp {
   virtual void on_message(const struct mosquitto_message* mosqmessage) {
 
     // Message received on a channel we subscribe to
-    printf("Message found on channel %s: %s\n", mosqmessage->topic, (char*)mosqmessage->payload);
+    printf("Message found on topic %s: %s\n", mosqmessage->topic, (char*)mosqmessage->payload);
 
     // determing node target based on channel
     uint16_t target_node = 0;
@@ -122,10 +116,6 @@ class MyMosquitto : public mosqpp::mosquittopp {
     } else if (strcmp(mosqmessage->topic, master_bedroom_tv_lamp_rgb_command) == 0) {
       target_node = master_bedroom_node;
       ha_rgb = true;
-
-    } else if (strcmp(mosqmessage->topic, garage_door_command) == 0) {
-      target_node = garage_door_node;
-      strcpy(messagePayload, "205138024158");
 
     } else {
       printf("FAILED: Unknown MQTT channel!");
@@ -207,7 +197,6 @@ int main(int argc, char** argv)
   mosq.subscribe(0, master_bedroom_tv_lamp_command);
   mosq.subscribe(0, master_bedroom_tv_lamp_rgb_command);
   mosq.subscribe(0, master_bedroom_tv_lamp_brightness_command);
-  mosq.subscribe(0, garage_door_command);
 
   // main loop
   while (true) {
@@ -234,8 +223,8 @@ int main(int argc, char** argv)
 
           printf("Bedroom temp: %i\n", param1);
           printf("Bedroom humidity: %i\n", param2);
-        	sprintf (buffer_temp, "mosquitto_pub -t \"%s\" -r -m \"%i\"", master_bedroom_temperature_state, param1);
-        	sprintf (buffer_humidity, "mosquitto_pub -t \"%s\" -r -m \"%i\"", master_bedroom_humidity_state, param2);
+        	sprintf (buffer_temp, "mosquitto_pub -r -t \"%s\" -m \"%i\"", master_bedroom_temperature_state, param1);
+        	sprintf (buffer_humidity, "mosquitto_pub -r -t \"%s\" -m \"%i\"", master_bedroom_humidity_state, param2);
         	system(buffer_temp);
         	system(buffer_humidity);
         } else if (sensor_type == tv_power){
@@ -249,7 +238,7 @@ int main(int argc, char** argv)
           }
 
           printf("Bedroom TV is: %s\n", tv_state);
-          sprintf (buffer_tv_status, "mosquitto_pub -t \"%s\" -r -m \"%s\"", master_bedroom_tv_power_state, tv_state);
+          sprintf (buffer_tv_status, "mosquitto_pub -r -t \"%s\" -m \"%s\"", master_bedroom_tv_power_state, tv_state);
           system(buffer_tv_status);
         } else if (sensor_type == rgb_values) {
           char buffer_rgbval[100];
@@ -268,44 +257,58 @@ int main(int argc, char** argv)
           strcat (values_rgb, blue);
 
           printf("Master Bedroom RGB values: \"%s\"", values_rgb);
-          sprintf(buffer_rgbval, "mosquitto_pub -t \"%s\" -r -m \"%s\"", master_bedroom_tv_lamp_rgb_state, values_rgb);
+          sprintf(buffer_rgbval, "mosquitto_pub -r -t \"%s\" -m \"%s\"", master_bedroom_tv_lamp_rgb_state, values_rgb);
           system(buffer_rgbval);
         } else if (sensor_type == rgb_brightness) {
           char buffer_rgbbright[100];
 
           printf("Master Bedoom brightness: \"%i\"", param1);
-          sprintf(buffer_rgbbright, "mosquitto_pub -t \"%s\" -r -m \"%i\"", master_bedroom_tv_lamp_brightness_state, param1);
+          sprintf(buffer_rgbbright, "mosquitto_pub -r -t \"%s\" -m \"%i\"", master_bedroom_tv_lamp_brightness_state, param1);
           system(buffer_rgbbright);
         } else if (sensor_type == light_mode)  {
           char buffer_rgbmode[75];
 
           printf("Master Bedoom Mode: \"%i\"", param1);
-          sprintf(buffer_rgbmode, "mosquitto_pub -t \"%s\" -r -m \"%i\"", master_bedroom_tv_lamp_state, param1);
+          sprintf(buffer_rgbmode, "mosquitto_pub -r -t \"%s\" -m \"%i\"", master_bedroom_tv_lamp_state, param1);
           system(buffer_rgbmode);
         } else {
           printf("Unknown sensor type!");
         }
+      } else if (sensor_id == office_node) {
+        if (sensor_type == rgb_values) {
+          char buffer_rgbval[100];
+          char values_rgb[12];
+          char red[4];
+          char green[4];
+          char blue[4];
 
-      } else if(sensor_id == garage_door_node) {
-        if (sensor_type == garage_door) {
-          char buffer_door_status[60];
-          printf("Garage door is: %iB\n", param1);
-          sprintf (buffer_door_status, "mosquitto_pub -t \"%s\" -r -m \"%i\"", garage_door_state, param1);
-          system(buffer_door_status);
-        } else if (sensor_type == dht_values) {
-          char buffer_temp[100];
-        	char buffer_humidity[100];
+          sprintf(red, "%d", param1);
+          sprintf(green, "%d", param2);
+          sprintf(blue, "%d", param3);
+          strcpy (values_rgb, red);
+          strcat (values_rgb, ", ");
+          strcat (values_rgb, green);
+          strcat (values_rgb, ", ");
+          strcat (values_rgb, blue);
 
-          printf("Garage temp: %i\n", param1);
-          printf("Garage humidity: %i\n", param2);
-        	sprintf (buffer_temp, "mosquitto_pub -t \"%s\" -r -m \"%i\"", garage_temperature_state, param1);
-        	sprintf (buffer_humidity, "mosquitto_pub -t \"%s\" -r -m \"%i\"", garage_humidity_state, param2);
-        	system(buffer_temp);
-        	system(buffer_humidity);
+          printf("Office RGB values: \"%s\"", values_rgb);
+          sprintf(buffer_rgbval, "mosquitto_pub -r -t \"%s\" -m \"%s\"", office_desk_lamp_rgb_state, values_rgb);
+          system(buffer_rgbval);
+        } else if (sensor_type == rgb_brightness) {
+          char buffer_rgbbright[100];
+
+          printf("Office brightness: \"%i\"", param1);
+          sprintf(buffer_rgbbright, "mosquitto_pub -r -t \"%s\" -m \"%i\"", office_desk_lamp_brightness_state, param1);
+          system(buffer_rgbbright);
+        } else if (sensor_type == light_mode)  {
+          char buffer_rgbmode[75];
+
+          printf("Office Mode: \"%i\"", param1);
+          sprintf(buffer_rgbmode, "mosquitto_pub -r -t \"%s\" -m \"%i\"", office_desk_lamp_state, param1);
+          system(buffer_rgbmode);
         } else {
           printf("Unknown sensor type!");
         }
-
       } else {
         printf("Unknown sensor!");
       }

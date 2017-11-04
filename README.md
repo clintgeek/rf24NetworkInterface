@@ -1,5 +1,6 @@
 # rf24NetworkInterface
 An interface between the rf24Network library and MQTT on a rasPi
+A simplified, ESP8266 compatible version is located in arduinoProjects as `this_node`.
 
 This program is designed to run on a RaspberryPi and interfaces between the rf24Network network and the local Mosquitto broker.
 
